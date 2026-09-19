@@ -70,7 +70,7 @@
             display: flex;
             gap: 10px;
         }
-        .time-inputs select, .duration-inputs div {
+        .time-inputs div, .duration-inputs div {
             flex: 1;
         }
         button {
@@ -105,6 +105,12 @@
             padding: 12px;
             border-bottom: 1px solid #eee;
         }
+        .saved-subject {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4285F4;
+            margin-bottom: 4px;
+        }
         .delete-btn {
             background-color: #f44336;
             color: white;
@@ -117,7 +123,7 @@
 </head>
 <body>
     <div class="app-header">
-        <h1>Exam Timer Calculator</h1>
+        <h1>Mr Garlic's Exam Timer Calculator</h1>
     </div>
     
     <div class="container">
@@ -125,49 +131,18 @@
             <h2>Exam Start Time</h2>
             <div class="time-inputs">
                 <div>
-                    <label for="hour">Hour</label>
-                    <select id="hour">
-                        <option value="0">12 AM</option>
-                        <option value="1">1 AM</option>
-                        <option value="2">2 AM</option>
-                        <option value="3">3 AM</option>
-                        <option value="4">4 AM</option>
-                        <option value="5">5 AM</option>
-                        <option value="6">6 AM</option>
-                        <option value="7">7 AM</option>
-                        <option value="8">8 AM</option>
-                        <option value="9" selected>9 AM</option>
-                        <option value="10">10 AM</option>
-                        <option value="11">11 AM</option>
-                        <option value="12">12 PM</option>
-                        <option value="13">1 PM</option>
-                        <option value="14">2 PM</option>
-                        <option value="15">3 PM</option>
-                        <option value="16">4 PM</option>
-                        <option value="17">5 PM</option>
-                        <option value="18">6 PM</option>
-                        <option value="19">7 PM</option>
-                        <option value="20">8 PM</option>
-                        <option value="21">9 PM</option>
-                        <option value="22">10 PM</option>
-                        <option value="23">11 PM</option>
-                    </select>
+                    <label for="hour">Hour (1-12)</label>
+                    <input type="number" id="hour" min="1" max="12" value="9" inputmode="numeric">
                 </div>
                 <div>
-                    <label for="minute">Minute</label>
-                    <select id="minute">
-                        <option value="0" selected>00</option>
-                        <option value="5">05</option>
-                        <option value="10">10</option>
-                        <option value="15">15</option>
-                        <option value="20">20</option>
-                        <option value="25">25</option>
-                        <option value="30">30</option>
-                        <option value="35">35</option>
-                        <option value="40">40</option>
-                        <option value="45">45</option>
-                        <option value="50">50</option>
-                        <option value="55">55</option>
+                    <label for="minute">Minute (0-59)</label>
+                    <input type="number" id="minute" min="0" max="59" value="0" inputmode="numeric">
+                </div>
+                <div>
+                    <label for="ampm">AM/PM</label>
+                    <select id="ampm">
+                        <option value="AM" selected>AM</option>
+                        <option value="PM">PM</option>
                     </select>
                 </div>
             </div>
@@ -178,13 +153,16 @@
             <div class="duration-inputs">
                 <div>
                     <label for="duration-hours">Hours</label>
-                    <input type="number" id="duration-hours" min="0" max="6" value="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="number" id="duration-hours" min="0" max="24" value="1" inputmode="numeric">
                 </div>
                 <div>
                     <label for="duration-minutes">Minutes</label>
-                    <input type="number" id="duration-minutes" min="0" max="59" value="45" inputmode="numeric" pattern="[0-9]*">
+                    <input type="number" id="duration-minutes" min="0" max="59" value="45" inputmode="numeric">
                 </div>
             </div>
+            
+            <label for="subject-name">Subject Name</label>
+            <input type="text" id="subject-name" placeholder="e.g., Mathematics Paper 1">
         </div>
         
         <button id="calculate-btn">Calculate End Time</button>
@@ -212,26 +190,13 @@
     </div>
     
     <script>
-        // Your Firebase configuration
-        const firebaseConfig = {
-            // You'll replace this with your actual Firebase config
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
-        
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        
         // DOM elements
-        const hourSelect = document.getElementById('hour');
-        const minuteSelect = document.getElementById('minute');
+        const hourInput = document.getElementById('hour');
+        const minuteInput = document.getElementById('minute');
+        const ampmSelect = document.getElementById('ampm');
         const durationHours = document.getElementById('duration-hours');
         const durationMinutes = document.getElementById('duration-minutes');
+        const subjectInput = document.getElementById('subject-name');
         const calculateBtn = document.getElementById('calculate-btn');
         const endTimeDisplay = document.getElementById('end-time');
         const extraTime25Display = document.getElementById('extra-time-25');
@@ -240,34 +205,45 @@
         const savedTimings = document.getElementById('saved-timings');
         const savedList = document.getElementById('saved-list');
         
-        // Calculate end time
+        // Helper function to get start hour in 24-hour format
+        function getStartHour24() {
+            let h = parseInt(hourInput.value) || 12;
+            const isPM = ampmSelect.value === 'PM';
+            if (h === 12) {
+                return isPM ? 12 : 0;
+            }
+            return isPM ? h + 12 : h;
+        }
+
+        // Calculate end time event handler
         calculateBtn.addEventListener('click', () => {
-            const startHour = parseInt(hourSelect.value);
-            const startMinute = parseInt(minuteSelect.value);
-            const examHours = parseInt(durationHours.value);
-            const examMinutes = parseInt(durationMinutes.value);
+            const startHour = getStartHour24();
+            const startMinute = parseInt(minuteInput.value) || 0;
+            const examHours = parseInt(durationHours.value) || 0;
+            const examMinutes = parseInt(durationMinutes.value) || 0;
             
-            // Calculate total minutes for standard time
-            let totalMinutes = startHour * 60 + startMinute + examHours * 60 + examMinutes;
+            // Total start time in minutes from midnight
+            const startTotalMinutes = startHour * 60 + startMinute;
             
-            // Calculate end times
-            calculateAndDisplayEndTime(totalMinutes, endTimeDisplay);
+            // Exam length in minutes
+            const durationTotalMinutes = examHours * 60 + examMinutes;
             
-            // Calculate for 25% extra time
-            const minutes25 = Math.round(totalMinutes + (examHours * 60 + examMinutes) * 0.25);
-            calculateAndDisplayEndTime(startHour * 60 + startMinute + minutes25 - totalMinutes + examHours * 60 + examMinutes, extraTime25Display);
+            // Calculate standard end time
+            calculateAndDisplayEndTime(startTotalMinutes + durationTotalMinutes, endTimeDisplay);
             
-            // Calculate for 50% extra time
-            const minutes50 = Math.round(totalMinutes + (examHours * 60 + examMinutes) * 0.5);
-            calculateAndDisplayEndTime(startHour * 60 + startMinute + minutes50 - totalMinutes + examHours * 60 + examMinutes, extraTime50Display);
+            // Calculate 25% extra time
+            const duration25 = Math.round(durationTotalMinutes * 1.25);
+            calculateAndDisplayEndTime(startTotalMinutes + duration25, extraTime25Display);
+            
+            // Calculate 50% extra time
+            const duration50 = Math.round(durationTotalMinutes * 1.50);
+            calculateAndDisplayEndTime(startTotalMinutes + duration50, extraTime50Display);
         });
         
         function calculateAndDisplayEndTime(totalMinutes, displayElement) {
-            // Convert back to hours and minutes
             const endHour = Math.floor(totalMinutes / 60) % 24;
             const endMinute = totalMinutes % 60;
             
-            // Format the end time
             const formattedHour = endHour % 12 === 0 ? 12 : endHour % 12;
             const amPm = endHour < 12 ? 'AM' : 'PM';
             const formattedMinute = endMinute.toString().padStart(2, '0');
@@ -275,26 +251,25 @@
             displayElement.textContent = `${formattedHour}:${formattedMinute} ${amPm}`;
         }
         
-        // Saving timings
+        // Saved timings handling
         const savedTimingsArray = [];
         
         saveBtn.addEventListener('click', () => {
             if (endTimeDisplay.textContent === '-') return;
             
-            const startHour = parseInt(hourSelect.value);
-            const startMinute = parseInt(minuteSelect.value);
-            const examHours = parseInt(durationHours.value);
-            const examMinutes = parseInt(durationMinutes.value);
+            const userHour = parseInt(hourInput.value) || 12;
+            const userMinute = parseInt(minuteInput.value) || 0;
+            const ampm = ampmSelect.value;
+            const examHours = parseInt(durationHours.value) || 0;
+            const examMinutes = parseInt(durationMinutes.value) || 0;
+            const subjectName = subjectInput.value.trim() || 'Exam';
             
-            // Format start time
-            const formattedStartHour = startHour % 12 === 0 ? 12 : startHour % 12;
-            const startAmPm = startHour < 12 ? 'AM' : 'PM';
-            const formattedStartMinute = startMinute.toString().padStart(2, '0');
-            const startTimeStr = `${formattedStartHour}:${formattedStartMinute} ${startAmPm}`;
+            const formattedStartMinute = userMinute.toString().padStart(2, '0');
+            const startTimeStr = `${userHour}:${formattedStartMinute} ${ampm}`;
             
-            // Save the timing
             const newTiming = {
                 id: Date.now().toString(),
+                subject: subjectName,
                 startTime: startTimeStr,
                 duration: `${examHours}h ${examMinutes}m`,
                 endTime: endTimeDisplay.textContent,
@@ -304,10 +279,6 @@
             
             savedTimingsArray.push(newTiming);
             updateSavedTimingsList();
-            
-            // Optional: Save to Firebase
-            // db.collection('timings').add(newTiming);
-            
             alert('Timing saved!');
         });
         
@@ -321,6 +292,7 @@
                     timingElement.className = 'saved-timing';
                     timingElement.innerHTML = `
                         <div>
+                            <div class="saved-subject">${timing.subject}</div>
                             <strong>${timing.startTime} - ${timing.endTime}</strong>
                             <div>Duration: ${timing.duration}</div>
                             <div>With 25% extra: ${timing.extra25}</div>
@@ -330,9 +302,7 @@
                     `;
                     savedList.appendChild(timingElement);
                 });
-                });
                 
-                // Add event listeners to delete buttons
                 document.querySelectorAll('.delete-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         const id = e.target.dataset.id;
@@ -348,7 +318,7 @@
             }
         }
         
-        // Initialize with example calculation
+        // Run initial calculation when loaded
         window.onload = () => {
             calculateBtn.click();
         };
